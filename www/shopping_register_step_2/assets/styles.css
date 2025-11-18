@@ -1,0 +1,248 @@
+:root {
+    --bg-body: #f3f4f6;
+    --bg-card: #ffffff;
+    --border-color: #d1d5db;
+    --primary: #2563eb;
+    --primary-dark: #1e40af;
+    --success-bg: #ecfdf5;
+    --success-border: #10b981;
+    --danger-bg: #fef2f2;
+    --danger-border: #dc2626;
+    --text-main: #111827;
+    --text-muted: #6b7280;
+}
+
+body {
+    margin: 0;
+    font-family: "Segoe UI", Roboto, system-ui, -apple-system, sans-serif;
+    background: var(--bg-body);
+    color: var(--text-main);
+}
+
+.app-body {
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 2rem;
+    box-sizing: border-box;
+}
+
+.card {
+    width: 100%;
+    max-width: 900px;
+    background: var(--bg-card);
+    border-radius: 16px;
+    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+    padding: 2.5rem;
+    box-sizing: border-box;
+}
+
+h1 {
+    text-align: center;
+    margin: 0 0 2rem;
+    font-size: 2rem;
+}
+
+.form-group {
+    margin-bottom: 1.4rem;
+}
+
+label {
+    display: block;
+    margin-bottom: 0.4rem;
+    font-weight: 600;
+}
+
+.input-field,
+.select-field {
+    width: 100%;
+    padding: 0.65rem 0.9rem;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    font-size: 1rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    box-sizing: border-box;
+    background: #fff;
+}
+
+.input-field:focus,
+.select-field:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.helper-text {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    margin-top: 0.35rem;
+}
+
+.switch-group .switch-control {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+}
+
+.switch-text {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 52px;
+    height: 28px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background-color: #d1d5db;
+    border-radius: 34px;
+    transition: background-color 0.2s;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 22px;
+    width: 22px;
+    left: 3px;
+    top: 3px;
+    background-color: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.toggle-switch input:checked + .slider {
+    background-color: var(--primary);
+}
+
+.toggle-switch input:checked + .slider:before {
+    transform: translateX(24px);
+}
+
+.toggle-switch input:focus + .slider {
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+.button-primary {
+    width: 100%;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 0.8rem;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.button-primary:hover {
+    background: var(--primary-dark);
+}
+
+.separator {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 2rem 0;
+}
+
+.result-card,
+.error-card {
+    border-radius: 12px;
+    padding: 1.2rem;
+    border-left: 5px solid;
+    margin-bottom: 1.5rem;
+}
+
+.result-card {
+    background: var(--success-bg);
+    border-color: var(--success-border);
+}
+
+.error-card {
+    background: var(--danger-bg);
+    border-color: var(--danger-border);
+    color: #b91c1c;
+}
+
+.section-title {
+    margin: 1rem 0 0.5rem;
+    font-size: 1.2rem;
+}
+
+.money-list {
+    margin: 0;
+    padding-left: 1.2rem;
+    list-style-type: disc;
+}
+
+.money-list li {
+    margin-bottom: 0.3rem;
+}
+
+.priority-note {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+.order-adjusted-note {
+    font-size: 0.85rem;
+    color: #b45309;
+    margin-left: 0.4rem;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+}
+
+.inventory-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.inventory-table th,
+.inventory-table td {
+    padding: 0.65rem 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+}
+
+.inventory-table th {
+    background: #f9fafb;
+    font-weight: 600;
+}
+
+.inventory-table td:last-child,
+.inventory-table th:last-child {
+    text-align: right;
+}
+
+.inventory-table tbody tr:hover {
+    background: #f9fafb;
+}
+
+@media (max-width: 640px) {
+    .app-body {
+        padding: 1rem;
+    }
+
+    .card {
+        padding: 1.5rem;
+    }
+}
