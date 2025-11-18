@@ -3,7 +3,7 @@
 <head>
 	<meta charset="utf-8">
 	<title>Caisse enregistreuse</title>
-	<link rel="stylesheet" href="/shopping_register_step_2/assets/styles.css">
+	<link rel="stylesheet" href="/shopping_register_step_3/assets/styles.css">
 </head>
 <body class="app-body">
 
