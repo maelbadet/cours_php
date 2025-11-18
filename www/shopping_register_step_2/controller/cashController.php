@@ -10,11 +10,17 @@ class CashController
 		$result = null;
 		$amountDue = null;
 		$amountGiven = null;
+		$prioritySelection = 'auto';
+
+		$cashRegister = new CashRegister();
+		$denominations = array_keys($cashRegister->getInventory());
+		rsort($denominations);
 
 		if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			// On récupère les montants en euros (string)
 			$amountDue = $_POST['amount_due'] ?? '';
 			$amountGiven = $_POST['amount_given'] ?? '';
+			$prioritySelection = $_POST['priority_value'] ?? 'auto';
 
 			// Remplace virgules par points pour les float
 			$amountDue = str_replace(',', '.', $amountDue);
@@ -32,14 +38,21 @@ class CashController
 				$amountDueCents = (int) round($amountDueFloat * 100);
 				$amountGivenCents = (int) round($amountGivenFloat * 100);
 
-				$cashRegister = new CashRegister();
-				$result = $cashRegister->computeChange($amountDueCents, $amountGivenCents);
+				$priorityValue = null;
+				if ($prioritySelection !== 'auto' && is_numeric($prioritySelection)) {
+					$priorityCandidate = (int)$prioritySelection;
+					if (in_array($priorityCandidate, $denominations, true)) {
+						$priorityValue = $priorityCandidate;
+					}
+				}
 
-				// On ajoute quelques infos formatées pour la vue
+				$result = $cashRegister->computeChange($amountDueCents, $amountGivenCents, $priorityValue);
+
 				if ($result['success']) {
 					$result['amountDueFormatted']   = CashRegister::formatCents($amountDueCents);
 					$result['amountGivenFormatted'] = CashRegister::formatCents($amountGivenCents);
 					$result['changeFormatted']      = CashRegister::formatCents($result['changeCents']);
+					$result['priorityValue']        = $priorityValue;
 				}
 			}
 		}

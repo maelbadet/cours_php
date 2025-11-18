@@ -33,7 +33,7 @@ class CashRegister
 	 * - retire ce que l'on rend
 	 * - met à jour l'état de caisse
 	 */
-	public function computeChange(int $amountDueCents, int $amountGivenCents): array
+	public function computeChange(int $amountDueCents, int $amountGivenCents, ?int $priorityValue = null): array
 	{
 		if ($amountGivenCents < $amountDueCents) {
 			return [
@@ -52,7 +52,7 @@ class CashRegister
 		$this->addAmountToInventory($amountGivenCents);
 
 		// 2) SORTIE : on tente de rendre la monnaie depuis la caisse mise à jour
-		$breakdown = $this->makeChangeFromInventory($changeCents);
+		$breakdown = $this->makeChangeFromInventory($changeCents, $priorityValue);
 
 		if ($breakdown === null) {
 			// Impossible de rendre la monnaie, on rollback la caisse
@@ -105,16 +105,22 @@ class CashRegister
 	 * Tente de rendre un montant en utilisant l'inventaire courant (sortie).
 	 * Retourne le breakdown ou null si impossible.
 	 */
-	private function makeChangeFromInventory(int $changeCents): ?array
+	private function makeChangeFromInventory(int $changeCents, ?int $priorityValue = null): ?array
 	{
 		$remaining = $changeCents;
 		$breakdown = [];
 
 		// On travaille sur une copie pour valider avant d'appliquer
 		$tempInventory = $this->inventory;
-		krsort($tempInventory); // plus grande valeur d'abord
+		$values = array_keys($tempInventory);
+		rsort($values); // plus grande valeur d'abord
 
-		foreach ($tempInventory as $value => $qtyAvailable) {
+		if ($priorityValue !== null && in_array($priorityValue, $values, true)) {
+			$values = array_merge([$priorityValue], array_values(array_diff($values, [$priorityValue])));
+		}
+
+		foreach ($values as $value) {
+			$qtyAvailable = $tempInventory[$value];
 			if ($remaining <= 0) {
 				break;
 			}
