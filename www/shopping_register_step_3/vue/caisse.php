@@ -21,10 +21,24 @@
 		</div>
 
 		<div class="form-group">
-			<label for="amount_given">Montant donné (€)</label>
-			<input type="text" id="amount_given" name="amount_given"
-			       value="<?= htmlspecialchars((string)($amountGiven ?? '50'), ENT_QUOTES, 'UTF-8') ?>"
-			       class="input-field">
+			<label>Monnaie reçue</label>
+			<div class="denomination-grid">
+				<?php foreach ($denominationMeta as $value => $meta): ?>
+					<div class="denomination-card">
+						<?php if (!empty($meta['image'])): ?>
+							<img src="<?= htmlspecialchars($meta['image'], ENT_QUOTES, 'UTF-8') ?>" alt=""
+							     class="denomination-image">
+						<?php endif; ?>
+						<div class="denomination-label">
+							<?= htmlspecialchars($meta['label'] ?? CashRegister::labelForValue((int)$value), ENT_QUOTES, 'UTF-8') ?>
+						</div>
+						<input type="number" min="0" class="input-field denomination-input"
+						       name="given[<?= (int)$value ?>]"
+						       value="<?= htmlspecialchars((string)($clientBreakdown[$value] ?? 0), ENT_QUOTES, 'UTF-8') ?>">
+					</div>
+				<?php endforeach; ?>
+			</div>
+			<p class="helper-text">Indiquez combien de billets/pièces de chaque valeur ont été reçus.</p>
 		</div>
 
 		<div class="form-group">
@@ -33,9 +47,9 @@
 				<option value="auto" <?= ($prioritySelection ?? 'auto') === 'auto' ? 'selected' : '' ?>>
 					Automatique (plus grands billets en premier)
 				</option>
-				<?php foreach ($denominations as $value): ?>
+				<?php foreach ($denominationMeta as $value => $meta): ?>
 					<option value="<?= (int)$value ?>" <?= ((string)$prioritySelection === (string)$value) ? 'selected' : '' ?>>
-						<?= htmlspecialchars(CashRegister::labelForValue((int)$value), ENT_QUOTES, 'UTF-8') ?>
+						<?= htmlspecialchars($meta['label'] ?? CashRegister::labelForValue((int)$value), ENT_QUOTES, 'UTF-8') ?>
 					</option>
 				<?php endforeach; ?>
 			</select>
@@ -74,8 +88,8 @@
 				<p><strong>Monnaie à rendre :</strong> <?= htmlspecialchars($result['changeFormatted'], ENT_QUOTES, 'UTF-8') ?> €</p>
 				<p class="priority-note">
 					Priorité appliquée :
-					<?php if (!empty($result['priorityValue'])): ?>
-						<?= htmlspecialchars(CashRegister::labelForValue((int)$result['priorityValue']), ENT_QUOTES, 'UTF-8') ?>
+				<?php if (!empty($result['priorityValue'])): ?>
+					<?= htmlspecialchars($denominationMeta[$result['priorityValue']]['label'] ?? CashRegister::labelForValue((int)$result['priorityValue']), ENT_QUOTES, 'UTF-8') ?>
 					<?php else: ?>
 						Automatique (du plus grand au plus petit)
 					<?php endif; ?>
@@ -99,10 +113,22 @@
 					<?php foreach ($result['breakdown'] as $value => $qty): ?>
 						<li>
 							<?= (int)$qty ?> ×
-							<?= htmlspecialchars(CashRegister::labelForValue((int)$value), ENT_QUOTES, 'UTF-8') ?>
+							<?= htmlspecialchars($denominationMeta[$value]['label'] ?? CashRegister::labelForValue((int)$value), ENT_QUOTES, 'UTF-8') ?>
 						</li>
 					<?php endforeach; ?>
 				</ul>
+
+				<?php if (!empty($result['receivedBreakdown'])): ?>
+					<h3 class="section-title">Détail de la monnaie reçue</h3>
+					<ul class="money-list">
+						<?php foreach ($result['receivedBreakdown'] as $value => $qty): ?>
+							<li>
+								<?= (int)$qty ?> ×
+								<?= htmlspecialchars($denominationMeta[$value]['label'] ?? CashRegister::labelForValue((int)$value), ENT_QUOTES, 'UTF-8') ?>
+							</li>
+						<?php endforeach; ?>
+					</ul>
+				<?php endif; ?>
 			</div>
 
 			<?php if (!empty($result['initialInventory']) && !empty($result['newInventory'])): ?>
@@ -111,39 +137,39 @@
 				<div class="table-wrapper">
 					<table class="inventory-table">
 						<thead>
+					<tr>
+						<th>Dénomination</th>
+						<th>Avant</th>
+						<th>Après</th>
+					</tr>
+					</thead>
+					<tbody>
+					<?php
+					$initial = $result['initialInventory'];
+					$new     = $result['newInventory'];
+
+					// On trie les valeurs du plus grand au plus petit
+					$values = array_keys($initial);
+					rsort($values);
+
+					foreach ($values as $value):
+						$before = $initial[$value] ?? 0;
+						$after  = $new[$value] ?? 0;
+						?>
 						<tr>
-							<th>Dénomination</th>
-							<th>Avant</th>
-							<th>Après</th>
+							<td>
+								<?= htmlspecialchars($denominationMeta[$value]['label'] ?? CashRegister::labelForValue((int)$value), ENT_QUOTES, 'UTF-8') ?>
+							</td>
+							<td>
+								<?= (int)$before ?>
+							</td>
+							<td>
+								<?= (int)$after ?>
+							</td>
 						</tr>
-						</thead>
-						<tbody>
-						<?php
-						$initial = $result['initialInventory'];
-						$new     = $result['newInventory'];
-
-						// On trie les valeurs du plus grand au plus petit
-						$values = array_keys($initial);
-						rsort($values);
-
-						foreach ($values as $value):
-							$before = $initial[$value] ?? 0;
-							$after  = $new[$value] ?? 0;
-							?>
-							<tr>
-								<td>
-									<?= htmlspecialchars(CashRegister::labelForValue((int)$value), ENT_QUOTES, 'UTF-8') ?>
-								</td>
-								<td>
-									<?= (int)$before ?>
-								</td>
-								<td>
-									<?= (int)$after ?>
-								</td>
-							</tr>
-						<?php endforeach; ?>
-						</tbody>
-					</table>
+					<?php endforeach; ?>
+					</tbody>
+				</table>
 				</div>
 			<?php endif; ?>
 

@@ -79,6 +79,37 @@ label {
     margin-top: 0.35rem;
 }
 
+.denomination-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.9rem;
+}
+
+.denomination-card {
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 0.75rem;
+    background: #f9fafb;
+}
+
+.denomination-image {
+    width: 100%;
+    height: auto;
+    max-height: 80px;
+    object-fit: contain;
+    margin-bottom: 0.5rem;
+}
+
+.denomination-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+}
+
+.denomination-input {
+    margin-top: 0.25rem;
+}
+
 .switch-group .switch-control {
     display: flex;
     align-items: center;

@@ -1,111 +1,198 @@
 <?php
 // Model/CashRegister.php
 
+require_once __DIR__ . '/PDO.php';
+
 class CashRegister
 {
-	// Montants en CENTIMES
-	private array $inventory = [
-		50000 => 1,   // 1 billet de 500
-		20000 => 2,   // 2 billets de 200
-		10000 => 2,   // 2 billets de 100
-		5000  => 4,   // 4 billets de 50
-		2000  => 1,   // 1 billet de 20
-		1000  => 23,  // 23 billets de 10
-		500   => 0,   // 0 billet de 5
-		200   => 34,  // 34 pièces de 2
-		100   => 23,  // 23 pièces de 1
-		50    => 23,  // 23 pièces de 0,5
-		20    => 80,  // 80 pièces de 0,2
-		10    => 12,  // 12 pièces de 0,1
-		5     => 8,   // 8 pièces de 0,05
-		2     => 45,  // 45 pièces de 0,02
-		1     => 12,  // 12 pièces de 0,01
+	private const DENOMINATIONS = [
+		50000,
+		20000,
+		10000,
+		5000,
+		2000,
+		1000,
+		500,
+		200,
+		100,
+		50,
+		20,
+		10,
+		5,
+		2,
+		1,
 	];
+
+	private PDO $pdo;
+	private array $inventory = [];
+	private array $inventoryMeta = [];
+
+	public function __construct(?PDO $pdo = null)
+	{
+		$this->pdo = $pdo ?? getPDO();
+		$this->refreshInventory();
+	}
+
+	public function refreshInventory(): void
+	{
+		$rows = $this->fetchInventoryRows();
+		$inventory = [];
+		$meta = [];
+
+		foreach ($rows as $value => $row) {
+			$inventory[$value] = $row['quantity'];
+			$meta[$value] = [
+				'id'    => $row['id'],
+				'name'  => $row['name'],
+				'image' => $row['image'],
+			];
+		}
+
+		foreach (self::DENOMINATIONS as $value) {
+			if (!array_key_exists($value, $inventory)) {
+				$inventory[$value] = 0;
+				$meta[$value] = [
+					'id'    => null,
+					'name'  => self::labelForValue($value),
+					'image' => null,
+				];
+			}
+		}
+
+		krsort($inventory);
+		$orderedMeta = [];
+		foreach (array_keys($inventory) as $value) {
+			$orderedMeta[$value] = $meta[$value] ?? [
+				'id'    => null,
+				'name'  => self::labelForValue($value),
+				'image' => null,
+			];
+		}
+
+		$this->inventory = $inventory;
+		$this->inventoryMeta = $orderedMeta;
+	}
 
 	public function getInventory(): array
 	{
 		return $this->inventory;
 	}
 
-	/**
-	 * Traite une transaction :
-	 * - ajoute ce que le client donne
-	 * - retire ce que l'on rend
-	 * - met à jour l'état de caisse
-	 */
-	public function computeChange(int $amountDueCents, int $amountGivenCents, ?int $priorityValue = null, string $changeOrder = 'desc'): array
+	public function getDenominations(): array
 	{
+		return array_keys($this->inventory);
+	}
+
+	public function getDenominationMetadata(): array
+	{
+		$meta = [];
+		foreach ($this->inventory as $value => $quantity) {
+			$info = $this->inventoryMeta[$value] ?? [];
+			$meta[$value] = [
+				'label'    => $info['name'] ?? self::labelForValue($value),
+				'image'    => $info['image'] ?? null,
+				'quantity' => $quantity,
+			];
+		}
+		return $meta;
+	}
+
+	/**
+	 * Traite une transaction à partir du détail fourni par le client.
+	 */
+	public function computeChange(int $amountDueCents, array $givenBreakdown, ?int $priorityValue = null, string $changeOrder = 'desc', ?int $clientId = null): array
+	{
+		if (empty($givenBreakdown)) {
+			return [
+				'success' => false,
+				'error'   => 'Veuillez indiquer les billets ou pièces reçus.',
+			];
+		}
+
+		$amountGivenCents = $this->totalFromBreakdown($givenBreakdown);
 		if ($amountGivenCents < $amountDueCents) {
 			return [
 				'success' => false,
-				'error'   => "Le montant donné est insuffisant.",
+				'error'   => 'Le montant donné est insuffisant.',
 			];
 		}
 
 		$changeCents = $amountGivenCents - $amountDueCents;
-		$originalChange = $changeCents;
 
-		// Sauvegarde de l'état initial avant toute opération
+		$this->refreshInventory();
 		$initialInventory = $this->inventory;
 
-		// 1) ENTRÉE : on ajoute à la caisse ce que le client donne
-		$this->addAmountToInventory($amountGivenCents);
+		try {
+			$this->pdo->beginTransaction();
 
-		// 2) SORTIE : on tente de rendre la monnaie depuis la caisse mise à jour
-		$orderToTry = in_array($changeOrder, ['asc', 'desc'], true) ? $changeOrder : 'desc';
-		$breakdown = $this->makeChangeFromInventory($changeCents, $priorityValue, $orderToTry);
+			$this->addBreakdownToInventory($givenBreakdown);
 
-		if ($breakdown === null && $orderToTry === 'asc') {
-			$orderToTry = 'desc';
+			$orderToTry = in_array($changeOrder, ['asc', 'desc'], true) ? $changeOrder : 'desc';
 			$breakdown = $this->makeChangeFromInventory($changeCents, $priorityValue, $orderToTry);
-		}
+			if ($breakdown === null && $orderToTry === 'asc') {
+				$orderToTry = 'desc';
+				$breakdown = $this->makeChangeFromInventory($changeCents, $priorityValue, $orderToTry);
+			}
 
-		if ($breakdown === null) {
-			// Impossible de rendre la monnaie, on rollback la caisse
+			if ($breakdown === null) {
+				$this->pdo->rollBack();
+				$this->inventory = $initialInventory;
+
+				return [
+					'success' => false,
+					'error'   => "Impossible de rendre la monnaie exacte avec l'état actuel de la caisse.",
+				];
+			}
+
+			$this->persistInventory($clientId);
+			$this->pdo->commit();
+
+			return [
+				'success'           => true,
+				'changeCents'       => $changeCents,
+				'breakdown'         => $breakdown,
+				'initialInventory'  => $initialInventory,
+				'newInventory'      => $this->inventory,
+				'changeOrder'       => $orderToTry,
+				'amountGivenCents'  => $amountGivenCents,
+				'receivedBreakdown' => $givenBreakdown,
+			];
+		} catch (Throwable $e) {
+			if ($this->pdo->inTransaction()) {
+				$this->pdo->rollBack();
+			}
 			$this->inventory = $initialInventory;
 
 			return [
 				'success' => false,
-				'error'   => "Impossible de rendre la monnaie exacte avec l'état actuel de la caisse.",
+				'error'   => "Une erreur est survenue pendant la mise à jour de la caisse.",
 			];
 		}
+	}
 
-		// newInventory = état final après entrée + sortie
-		$newInventory = $this->inventory;
-
-			return [
-				'success'           => true,
-				'changeCents'       => $originalChange,
-				'breakdown'         => $breakdown,
-				'initialInventory'  => $initialInventory,
-				'newInventory'      => $newInventory,
-				'changeOrder'       => $orderToTry,
-			];
-		}
-
-	/**
-	 * Ajoute un montant à la caisse en le décomposant
-	 * avec les valeurs disponibles (entrée).
-	 */
-	private function addAmountToInventory(int $amountCents): void
+	private function addBreakdownToInventory(array $breakdown): void
 	{
-		$values = array_keys($this->inventory);
-		rsort($values); // du plus grand au plus petit
-
-		$remaining = $amountCents;
-
-		foreach ($values as $value) {
-			if ($remaining <= 0) {
-				break;
+		foreach ($breakdown as $value => $qty) {
+			if (!array_key_exists($value, $this->inventory)) {
+				continue;
 			}
 
-			$nb = intdiv($remaining, $value);
-			if ($nb > 0) {
-				$this->inventory[$value] += $nb;
-				$remaining -= $nb * $value;
-			}
+			$this->inventory[$value] += $qty;
 		}
-		// Comme on a 1 centime dans les valeurs, remaining devrait être 0.
+	}
+
+	private function totalFromBreakdown(array $breakdown): int
+	{
+		$total = 0;
+		foreach ($breakdown as $value => $qty) {
+			if ($qty <= 0) {
+				continue;
+			}
+
+			$total += $value * $qty;
+		}
+
+		return $total;
 	}
 
 	/**
@@ -117,13 +204,12 @@ class CashRegister
 		$remaining = $changeCents;
 		$breakdown = [];
 
-		// On travaille sur une copie pour valider avant d'appliquer
 		$tempInventory = $this->inventory;
 		$values = array_keys($tempInventory);
 		if ($order === 'asc') {
 			sort($values);
 		} else {
-			rsort($values); // par défaut : plus grande valeur d'abord
+			rsort($values);
 			$order = 'desc';
 		}
 
@@ -132,7 +218,7 @@ class CashRegister
 		}
 
 		foreach ($values as $value) {
-			$qtyAvailable = $tempInventory[$value];
+			$qtyAvailable = $tempInventory[$value] ?? 0;
 			if ($remaining <= 0) {
 				break;
 			}
@@ -152,13 +238,99 @@ class CashRegister
 		}
 
 		if ($remaining > 0) {
-			return null; // impossible de rendre
+			return null;
 		}
 
-		// On valide la nouvelle caisse
 		$this->inventory = $tempInventory;
 
 		return $breakdown;
+	}
+
+	private function persistInventory(?int $clientId): void
+	{
+		$stmt = $this->pdo->prepare('UPDATE caisse SET quantity = :quantity, client_id_update = :clientId, updated_at = NOW() WHERE id = :id');
+
+		foreach ($this->inventory as $value => $quantity) {
+			$meta = $this->inventoryMeta[$value] ?? null;
+			if (empty($meta['id'])) {
+				continue;
+			}
+
+			$stmt->bindValue(':quantity', $quantity, PDO::PARAM_INT);
+			if ($clientId === null) {
+				$stmt->bindValue(':clientId', null, PDO::PARAM_NULL);
+			} else {
+				$stmt->bindValue(':clientId', $clientId, PDO::PARAM_INT);
+			}
+			$stmt->bindValue(':id', $meta['id'], PDO::PARAM_INT);
+			$stmt->execute();
+		}
+	}
+
+	private function fetchInventoryRows(): array
+	{
+		$stmt = $this->pdo->prepare('SELECT id, name, quantity, image FROM caisse WHERE deleted_at IS NULL ORDER BY id ASC');
+		$stmt->execute();
+
+		$rows = [];
+		while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+			$value = $this->valueFromName((string)$row['name']);
+			if ($value === null) {
+				continue;
+			}
+
+			$rows[$value] = [
+				'id'       => (int)$row['id'],
+				'name'     => (string)$row['name'],
+				'quantity' => (int)$row['quantity'],
+				'image'    => $row['image'] ? (string)$row['image'] : null,
+			];
+		}
+
+		return $rows;
+	}
+
+	private function valueFromName(string $name): ?int
+	{
+		$normalized = preg_replace('/[^0-9,\.]/', '', str_replace('€', '', $name));
+		if ($normalized === null) {
+			return null;
+		}
+
+		$normalized = trim($normalized);
+		if ($normalized === '') {
+			return null;
+		}
+
+		$normalized = str_replace(',', '.', $normalized);
+		if (!is_numeric($normalized)) {
+			return null;
+		}
+
+		$lowerName = mb_strtolower($name);
+		$value = (float)$normalized;
+
+		if (str_contains($lowerName, 'centime')) {
+			$candidate = (int)round($value);
+			return $this->isValidDenomination($candidate) ? $candidate : null;
+		}
+
+		$candidateEuro = (int)round($value * 100);
+		if ($this->isValidDenomination($candidateEuro)) {
+			return $candidateEuro;
+		}
+
+		$candidateDirect = (int)round($value);
+		if ($this->isValidDenomination($candidateDirect)) {
+			return $candidateDirect;
+		}
+
+		return null;
+	}
+
+	private function isValidDenomination(int $value): bool
+	{
+		return in_array($value, self::DENOMINATIONS, true);
 	}
 
 	/**
@@ -176,13 +348,13 @@ class CashRegister
 	{
 		$euro = $value / 100;
 		if ($euro >= 5) {
-			return "Billet de " . $euro . " €";
+			return 'Billet de ' . $euro . ' €';
 		}
 
 		if ($euro >= 1) {
-			return "Pièce de " . $euro . " €";
+			return 'Pièce de ' . $euro . ' €';
 		}
 
-		return "Pièce de " . str_replace('.', ',', (string)$euro) . " €";
+		return 'Pièce de ' . str_replace('.', ',', (string)$euro) . ' €';
 	}
 }
