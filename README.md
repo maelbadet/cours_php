@@ -29,3 +29,17 @@ Les branches ci-dessous montrent l'évolution d'une caisse enregistreuse au fil 
     - L'algorithme parcourt les dénominations du plus petit vers le plus grand.
     - Permet d'étudier les limites du greedy classique (peut nécessiter plus de pièces, oblige à raisonner sur les stocks).
 - Intérêt : réfléchir à l'impact métier (ex. écouler les petites pièces) et comparer les résultats avec ceux des étapes précédentes.
+
+### `feat/pdo-implement` — Persistance avec PDO
+- Objectif : brancher la caisse sur une base de données via PDO.
+- Fonctionnalités :
+    - Connexion PDO et création des tables `user` et `caisse`.
+    - Enregistrement/persistance du solde de la caisse pour suivre son état entre deux exécutions.
+- Intérêt : introduire la couche de persistance et la manipulation sécurisée des données côté serveur.
+
+### `feat/add-items-and-facture` — Articles dynamiques et facture
+- Objectif : enrichir la caisse avec une gestion d'articles et l'affichage d'une facture côté front.
+- Fonctionnalités :
+    - Ajout d'articles dynamiques avec prix, quantité et total calculé.
+    - Génération/affichage d'une facture complète dans l'interface.
+- Intérêt : relier la logique de caisse à un flux plus complet (catalogue + facture) et manipuler des données dynamiques en front.
