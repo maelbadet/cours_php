@@ -268,6 +268,25 @@ label {
     background: #f9fafb;
 }
 
+.items-table .item-qty-input {
+    max-width: 90px;
+    padding: 0.4rem 0.6rem;
+}
+
+.items-total-display {
+    display: flex;
+    justify-content: flex-end;
+    align-items: baseline;
+    gap: 0.4rem;
+    margin-top: 0.6rem;
+    font-weight: 600;
+}
+
+.items-summary-table tfoot td {
+    font-weight: 600;
+    background: #f9fafb;
+}
+
 @media (max-width: 640px) {
     .app-body {
         padding: 1rem;

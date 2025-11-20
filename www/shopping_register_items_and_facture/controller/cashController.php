@@ -2,6 +2,7 @@
 // Controller/CashController.php
 
 require_once __DIR__ . '/../model/CashRegister.php';
+require_once __DIR__ . '/../model/Items.php';
 
 class CashController
 {
@@ -9,11 +10,20 @@ class CashController
 	{
 		$result = null;
 		$amountDue = null;
-		$prioritySelection = 'auto';
+		$prioritySelection  = 'auto';
 		$changeOrderSelection = 'desc';
 		$clientBreakdown = [];
+		$itemQuantities = [];
+		$itemsTotalCents = 0;
+		$itemsSelectionDetails = [];
 
 		$cashRegister = new CashRegister();
+		$itemsModel = new Items();
+		$availableItems = $itemsModel->getAll();
+		$itemsById = [];
+		foreach ($availableItems as $item) {
+			$itemsById[$item['id']] = $item;
+		}
 		$denominationMeta = $cashRegister->getDenominationMetadata();
 		$denominations = array_keys($denominationMeta);
 		foreach ($denominations as $value) {
@@ -21,8 +31,46 @@ class CashController
 		}
 
 		if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-			// On récupère les montants en euros (string)
-			$amountDue = $_POST['amount_due'] ?? '';
+			$rawItems = $_POST['items'] ?? [];
+			if (is_array($rawItems)) {
+				foreach ($rawItems as $itemId => $qtyRaw) {
+					if ($qtyRaw === '' || $qtyRaw === null) {
+						continue;
+					}
+
+					if (!is_numeric($qtyRaw)) {
+						continue;
+					}
+
+					$quantity = (int)$qtyRaw;
+					if ($quantity < 0) {
+						$quantity = 0;
+					}
+
+					$itemQuantities[(int)$itemId] = $quantity;
+				}
+			}
+			foreach ($itemQuantities as $itemId => $qty) {
+				if ($qty <= 0) {
+					continue;
+				}
+
+				if (!isset($itemsById[$itemId])) {
+					continue;
+				}
+
+				$item = $itemsById[$itemId];
+				$lineTotal = $qty * $item['price_ttc_cents'];
+				$itemsTotalCents += $lineTotal;
+				$itemsSelectionDetails[$itemId] = [
+					'id'               => $itemId,
+					'name'             => $item['name'],
+					'quantity'         => $qty,
+					'price_ttc_cents'  => $item['price_ttc_cents'],
+					'line_total_cents' => $lineTotal,
+				];
+			}
+
 			$prioritySelection = $_POST['priority_value'] ?? 'auto';
 			$changeOrderSelection = $_POST['change_order'] ?? 'desc';
 			if (!in_array($changeOrderSelection, ['asc', 'desc'], true)) {
@@ -44,18 +92,13 @@ class CashController
 
 				$clientBreakdown[$value] = $qty;
 			}
-
-			// Remplace virgules par points pour les float
-			$amountDue = str_replace(',', '.', $amountDue);
-
-			if (!is_numeric($amountDue)) {
+			if ($itemsTotalCents <= 0) {
 				$result = [
 					'success' => false,
-					'error'   => "Le montant à payer doit être un nombre.",
+					'error'   => 'Sélectionnez au moins un article à encaisser.',
 				];
 			} else {
-				$amountDueFloat = (float)$amountDue;
-				$amountDueCents = (int) round($amountDueFloat * 100);
+				$amountDueCents = $itemsTotalCents;
 				$givenBreakdown = array_filter(
 					$clientBreakdown,
 					static fn(int $qty): bool => $qty > 0
@@ -82,10 +125,23 @@ class CashController
 					$result['changeFormatted']      = CashRegister::formatCents($result['changeCents']);
 					$result['priorityValue']        = $priorityValue;
 					$result['changeOrder']          = $result['changeOrder'] ?? $changeOrderSelection;
+					$result['itemsBreakdown']       = array_map(
+						static function (array $line): array {
+							return [
+								'name'             => $line['name'],
+								'quantity'         => $line['quantity'],
+								'priceCents'       => $line['price_ttc_cents'],
+								'lineTotalCents'   => $line['line_total_cents'],
+							];
+						},
+						array_values($itemsSelectionDetails)
+					);
+					$result['itemsTotalFormatted'] = CashRegister::formatCents($itemsTotalCents);
 				}
 			}
 		}
 
+		$amountDue = CashRegister::formatCents($itemsTotalCents);
 		$denominationMeta = $cashRegister->getDenominationMetadata();
 
 		// On charge la vue

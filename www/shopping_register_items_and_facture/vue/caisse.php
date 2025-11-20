@@ -3,7 +3,7 @@
 <head>
 	<meta charset="utf-8">
 	<title>Caisse enregistreuse</title>
-	<link rel="stylesheet" href="/shopping_register_pdo/assets/styles.css">
+	<link rel="stylesheet" href="/shopping_register_items_and_facture/assets/styles.css">
 </head>
 <body class="app-body">
 
@@ -14,10 +14,61 @@
 	<form method="post" action="">
 
 		<div class="form-group">
-			<label for="amount_due">Montant à payer (€)</label>
+			<label>Articles à encaisser</label>
+			<?php if (!empty($availableItems)): ?>
+				<div class="table-wrapper">
+					<table class="inventory-table items-table">
+						<thead>
+						<tr>
+							<th>Article</th>
+							<th>Prix HT</th>
+							<th>TVA</th>
+							<th>Prix TTC</th>
+							<th>Quantité</th>
+						</tr>
+						</thead>
+						<tbody>
+						<?php foreach ($availableItems as $item): ?>
+							<tr>
+								<td><?= htmlspecialchars($item['name'], ENT_QUOTES, 'UTF-8') ?></td>
+								<td><?= htmlspecialchars(CashRegister::formatCents((int)$item['price_ht_cents']), ENT_QUOTES, 'UTF-8') ?> €</td>
+								<td>
+									<?= $item['tva'] !== null
+										? htmlspecialchars(rtrim(rtrim(number_format((float)$item['tva'], 2, ',', ' '), '0'), ','), ENT_QUOTES, 'UTF-8') . ' %'
+										: '-' ?>
+								</td>
+								<td><?= htmlspecialchars(CashRegister::formatCents((int)$item['price_ttc_cents']), ENT_QUOTES, 'UTF-8') ?> €</td>
+								<td>
+									<input type="number"
+									       min="0"
+									       step="1"
+									       class="input-field item-qty-input"
+									       name="items[<?= (int)$item['id'] ?>]"
+									       data-item-price="<?= (int)$item['price_ttc_cents'] ?>"
+									       value="<?= htmlspecialchars((string)($itemQuantities[$item['id']] ?? 0), ENT_QUOTES, 'UTF-8') ?>">
+								</td>
+							</tr>
+						<?php endforeach; ?>
+						</tbody>
+					</table>
+				</div>
+				<div class="items-total-display">
+					<span>Total TTC sélectionné :</span>
+					<strong id="items_total_value"><?= htmlspecialchars((string)($amountDue ?? '0,00'), ENT_QUOTES, 'UTF-8') ?> €</strong>
+				</div>
+			<?php else: ?>
+				<p class="helper-text">Aucun article n'est encore configuré dans la base.</p>
+			<?php endif; ?>
+			<p class="helper-text">Indiquez les quantités d'articles à encaisser, le total se calcule automatiquement.</p>
+		</div>
+
+		<div class="form-group">
+			<label for="amount_due">Montant à payer (TTC)</label>
 			<input type="text" id="amount_due" name="amount_due"
-			       value="<?= htmlspecialchars((string)($amountDue ?? '33,48'), ENT_QUOTES, 'UTF-8') ?>"
-			       class="input-field">
+			       value="<?= htmlspecialchars((string)($amountDue ?? '0,00'), ENT_QUOTES, 'UTF-8') ?>"
+			       class="input-field"
+			       readonly>
+			<p class="helper-text">Ce montant est automatiquement calculé à partir des articles sélectionnés.</p>
 		</div>
 
 		<div class="form-group">
@@ -118,6 +169,38 @@
 					<?php endforeach; ?>
 				</ul>
 
+				<?php if (!empty($result['itemsBreakdown'])): ?>
+					<h3 class="section-title">Articles encaissés</h3>
+					<div class="table-wrapper">
+						<table class="inventory-table items-summary-table">
+							<thead>
+							<tr>
+								<th>Article</th>
+								<th>Quantité</th>
+								<th>Prix unitaire TTC</th>
+								<th>Total TTC</th>
+							</tr>
+							</thead>
+							<tbody>
+							<?php foreach ($result['itemsBreakdown'] as $line): ?>
+								<tr>
+									<td><?= htmlspecialchars($line['name'], ENT_QUOTES, 'UTF-8') ?></td>
+									<td><?= (int)$line['quantity'] ?></td>
+									<td><?= htmlspecialchars(CashRegister::formatCents((int)$line['priceCents']), ENT_QUOTES, 'UTF-8') ?> €</td>
+									<td><?= htmlspecialchars(CashRegister::formatCents((int)$line['lineTotalCents']), ENT_QUOTES, 'UTF-8') ?> €</td>
+								</tr>
+							<?php endforeach; ?>
+							</tbody>
+							<tfoot>
+							<tr>
+								<td colspan="3">Total</td>
+								<td><?= htmlspecialchars($result['itemsTotalFormatted'] ?? '0,00', ENT_QUOTES, 'UTF-8') ?> €</td>
+							</tr>
+							</tfoot>
+						</table>
+					</div>
+				<?php endif; ?>
+
 				<?php if (!empty($result['receivedBreakdown'])): ?>
 					<h3 class="section-title">Détail de la monnaie reçue</h3>
 					<ul class="money-list">
@@ -184,5 +267,42 @@
 
 </div>
 
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+	const qtyInputs = document.querySelectorAll('[data-item-price]');
+	const totalField = document.getElementById('amount_due');
+	const totalDisplay = document.getElementById('items_total_value');
+	const formatter = new Intl.NumberFormat('fr-FR', {
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	});
+
+	const updateTotals = () => {
+		let totalCents = 0;
+		qtyInputs.forEach((input) => {
+			const price = parseInt(input.dataset.itemPrice ?? '0', 10);
+			const qty = parseInt(input.value ?? '0', 10);
+			if (!Number.isFinite(price) || !Number.isFinite(qty) || qty <= 0) {
+				return;
+			}
+			totalCents += price * qty;
+		});
+
+		const formatted = formatter.format(totalCents / 100);
+		if (totalField) {
+			totalField.value = formatted;
+		}
+		if (totalDisplay) {
+			totalDisplay.textContent = formatted + ' €';
+		}
+	};
+
+	qtyInputs.forEach((input) => {
+		input.addEventListener('input', updateTotals);
+	});
+
+	updateTotals();
+});
+</script>
 </body>
 </html>
