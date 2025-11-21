@@ -1,4 +1,9 @@
 <?php
+namespace App\Model;
+
+use PDO;
+use PDOException;
+use RuntimeException;
 
 final class DatabaseConnection
 {

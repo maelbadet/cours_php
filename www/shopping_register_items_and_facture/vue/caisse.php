@@ -1,3 +1,8 @@
+<?php
+
+use App\Model\CashRegister;
+
+?>
 <!doctype html>
 <html lang="fr">
 <head>

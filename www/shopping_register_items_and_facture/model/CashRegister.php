@@ -1,7 +1,9 @@
 <?php
+namespace App\Model;
 // Model/CashRegister.php
 
-require_once __DIR__ . '/PDO.php';
+use PDO;
+use Throwable;
 
 class CashRegister
 {
@@ -27,10 +29,19 @@ class CashRegister
 	private array $inventory = [];
 	private array $inventoryMeta = [];
 
-	public function __construct(?PDO $pdo = null)
+	public function __construct(?PDO $pdo = null, bool $refreshInventory = true)
 	{
 		$this->pdo = $pdo ?? getPDO();
-		$this->refreshInventory();
+		if ($refreshInventory) {
+			$this->refreshInventory();
+		} else {
+			$this->applyInventoryState([], []);
+		}
+	}
+
+	public static function builder(): CashRegisterBuilder
+	{
+		return new CashRegisterBuilder();
 	}
 
 	public function refreshInventory(): void
@@ -48,29 +59,12 @@ class CashRegister
 			];
 		}
 
-		foreach (self::DENOMINATIONS as $value) {
-			if (!array_key_exists($value, $inventory)) {
-				$inventory[$value] = 0;
-				$meta[$value] = [
-					'id'    => null,
-					'name'  => self::labelForValue($value),
-					'image' => null,
-				];
-			}
-		}
+		$this->applyInventoryState($inventory, $meta);
+	}
 
-		krsort($inventory);
-		$orderedMeta = [];
-		foreach (array_keys($inventory) as $value) {
-			$orderedMeta[$value] = $meta[$value] ?? [
-				'id'    => null,
-				'name'  => self::labelForValue($value),
-				'image' => null,
-			];
-		}
-
-		$this->inventory = $inventory;
-		$this->inventoryMeta = $orderedMeta;
+	public function overrideInventory(array $inventory, array $inventoryMeta = []): void
+	{
+		$this->applyInventoryState($inventory, $inventoryMeta);
 	}
 
 	public function getInventory(): array
@@ -331,6 +325,33 @@ class CashRegister
 	private function isValidDenomination(int $value): bool
 	{
 		return in_array($value, self::DENOMINATIONS, true);
+	}
+
+	private function applyInventoryState(array $inventory, array $meta): void
+	{
+		foreach (self::DENOMINATIONS as $value) {
+			if (!array_key_exists($value, $inventory)) {
+				$inventory[$value] = 0;
+				$meta[$value] = [
+					'id'    => null,
+					'name'  => self::labelForValue($value),
+					'image' => null,
+				];
+			}
+		}
+
+		krsort($inventory);
+		$orderedMeta = [];
+		foreach (array_keys($inventory) as $value) {
+			$orderedMeta[$value] = $meta[$value] ?? [
+				'id'    => null,
+				'name'  => self::labelForValue($value),
+				'image' => null,
+			];
+		}
+
+		$this->inventory = $inventory;
+		$this->inventoryMeta = $orderedMeta;
 	}
 
 	/**

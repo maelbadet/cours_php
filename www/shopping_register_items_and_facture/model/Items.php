@@ -1,6 +1,7 @@
 <?php
+namespace App\Model;
 
-require_once __DIR__ . '/PDO.php';
+use PDO;
 
 class Items
 {

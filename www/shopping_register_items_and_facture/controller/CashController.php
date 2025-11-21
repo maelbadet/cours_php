@@ -1,8 +1,9 @@
 <?php
+namespace App\Controller;
 // Controller/CashController.php
 
-require_once __DIR__ . '/../model/CashRegister.php';
-require_once __DIR__ . '/../model/Items.php';
+use App\Model\CashRegister;
+use App\Model\Items;
 
 class CashController
 {
@@ -17,7 +18,7 @@ class CashController
 		$itemsTotalCents = 0;
 		$itemsSelectionDetails = [];
 
-		$cashRegister = new CashRegister();
+		$cashRegister = CashRegister::builder()->build();
 		$itemsModel = new Items();
 		$availableItems = $itemsModel->getAll();
 		$itemsById = [];
